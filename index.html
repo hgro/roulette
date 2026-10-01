@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roulette-Tisch – Ereignisse markieren</title>
+<style>
+:root{
+  --bg:#ffffff;--surface-1:#f4f3ef;--text-primary:#1f1f1d;--text-secondary:#5f5e5a;
+  --border:rgba(0,0,0,.12);--border-strong:rgba(0,0,0,.3);
+  --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#1c1c1a;--surface-1:#2a2a27;--text-primary:#f1efe8;--text-secondary:#b4b2a9;
+    --border:rgba(255,255,255,.14);--border-strong:rgba(255,255,255,.35);}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text-primary);font-family:var(--font-sans)}
+main{max-width:860px;margin:0 auto;padding:20px 16px 32px}
+h1{font-size:20px;font-weight:500;margin:0 0 14px}
+#tbl{display:grid;grid-template-columns:52px repeat(12,minmax(0,1fr)) 46px;gap:3px;padding:12px;background:#27500A;border-radius:12px}
+.rc{display:flex;align-items:center;justify-content:center;font-size:clamp(12px,1.9vw,17px);font-weight:500;color:#fff;border-radius:4px;min-height:40px;cursor:pointer;user-select:none;outline-offset:-3px;text-align:center}
+.rc.o{font-size:clamp(11px,1.6vw,14px);min-height:44px;background:var(--surface-1);color:var(--text-primary);border:.5px solid var(--border-strong)}
+#ebs{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+button{font:inherit;font-size:14px;color:var(--text-primary);background:transparent;border:.5px solid var(--border-strong);border-radius:8px;padding:5px 12px;height:34px;cursor:pointer}
+button:hover{background:var(--surface-1)}
+button:active{transform:scale(.98)}
+#lab{font-size:15px;margin-top:12px;color:var(--text-secondary)}
+.rc:focus-visible,button:focus-visible{outline:3px solid #378ADD;outline-offset:2px}
+@media print{#ebs{display:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Roulette-Tisch (europäisch, 37 Felder)</h1>
+<div id="tbl" role="group" aria-label="Roulette-Tisch"></div>
+<div id="ebs"></div>
+<div id="lab" aria-live="polite">Felder anklicken oder ein Ereignis wählen</div>
+</main>
+<script>
+const R=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+const PR=[2,3,5,7,11,13,17,19,23,29,31];
+const col=n=>n===0?'g':R.has(n)?'r':'b';
+const bgc={g:'#3B6D11',r:'#A32D2D',b:'#2C2C2A'};
+const t=document.getElementById('tbl');
+const cells={};
+let sel=new Set(),label='';
+function mk(txt,c,r,cs,rs,cls,fn,bg){
+  const d=document.createElement('div');
+  d.className='rc'+(cls?' '+cls:'');
+  d.textContent=txt;
+  d.style.gridColumn=c+' / span '+cs;
+  d.style.gridRow=r+' / span '+rs;
+  if(bg)d.style.background=bg;
+  d.tabIndex=0;
+  d.setAttribute('role','button');
+  d.onclick=fn;
+  d.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();}};
+  t.appendChild(d);return d;
+}
+cells[0]=mk('0',1,1,1,3,'',()=>tog(0),bgc.g);
+for(let n=1;n<=36;n++){
+  const c=Math.floor((n-1)/3)+2,r=3-((n-1)%3);
+  cells[n]=mk(n,c,r,1,1,'',()=>tog(n),bgc[col(n)]);
+}
+const rng=(a,b)=>{const x=[];for(let i=a;i<=b;i++)x.push(i);return x;};
+const colK=m=>rng(1,36).filter(n=>n%3===m);
+[[0,1],[2,2],[1,3]].forEach(([m,r])=>mk('2:1',14,r,1,1,'o',()=>setE('Kolonne',colK(m))));
+const doz=[['1. Dutzend (1–12)',rng(1,12)],['2. Dutzend (13–24)',rng(13,24)],['3. Dutzend (25–36)',rng(25,36)]];
+doz.forEach((d,i)=>mk(d[0].split(' (')[0],2+4*i,4,4,1,'o',()=>setE(d[0],d[1])));
+const outs=[['1–18',rng(1,18)],['gerade',rng(1,36).filter(n=>n%2===0)],['rot',rng(1,36).filter(n=>R.has(n))],['schwarz',rng(1,36).filter(n=>!R.has(n))],['ungerade',rng(1,36).filter(n=>n%2===1)],['19–36',rng(19,36)]];
+outs.forEach((o,i)=>{
+  const bg=o[0]==='rot'?bgc.r:o[0]==='schwarz'?bgc.b:null;
+  const d=mk(o[0],2+2*i,5,2,1,bg?'':'o',()=>setE(o[0],o[1]),bg);
+  if(bg){d.style.minHeight='44px';d.style.fontSize='clamp(11px,1.6vw,14px)';}
+});
+const extra=[['Primzahl',PR],['durch 3 teilbar',rng(1,36).filter(n=>n%3===0)],['Zahl 7',[7]],['Zero',[0]],['Auswahl löschen',[]]];
+const eb=document.getElementById('ebs');
+extra.forEach(e=>{const b=document.createElement('button');b.textContent=e[0];b.onclick=()=>setE(e[1].length?e[0]:'',e[1]);eb.appendChild(b);});
+function setE(l,a){sel=new Set(a);label=l;draw();}
+function tog(n){if(sel.has(n))sel.delete(n);else sel.add(n);label=sel.size?'Eigene Auswahl':'';draw();}
+function draw(){
+  for(let n=0;n<=36;n++){
+    const c=cells[n],on=sel.has(n);
+    c.style.outline=on?'3px solid #EF9F27':'';
+    c.style.opacity=(sel.size&&!on)?0.4:1;
+  }
+  document.getElementById('lab').textContent=label?('Markiert: '+label):'Felder anklicken oder ein Ereignis wählen';
+}
+draw();
+</script>
+</body>
+</html>
